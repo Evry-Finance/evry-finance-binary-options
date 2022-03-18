@@ -18,7 +18,6 @@ contract BinaryOption is Ownable, Pausable, ReentrancyGuard {
   using SafeERC20 for ERC20;
 
   ERC20 public immutable betToken;
-  // // Constant
   AggregatorV3Interface public oracle;
   bool public genesisLockOnce = false;
   bool public genesisStartOnce = false;
@@ -26,15 +25,15 @@ contract BinaryOption is Ownable, Pausable, ReentrancyGuard {
   address public adminAddress; // address of the admin
   address public operatorAddress; // address of the operator
 
-  uint256 public bufferSeconds; // number of seconds for valid execution of a prediction round
-  uint256 public intervalSeconds; // interval in seconds between two prediction rounds
-  uint256 public lockInSeconds;
+  uint256 public bufferSeconds; // number of seconds for valid execution of a bet round
+  uint256 public intervalSeconds; // interval in seconds for each round
+  uint256 public lockInSeconds; // number of seconds before round locked
 
   uint256 public minBetAmount; // minimum betting amount (denominated in wei)
   uint256 public treasuryFee; // treasury rate (e.g. 200 = 2%, 150 = 1.50%)
   uint256 public treasuryAmount; // treasury amount that was not claimed
 
-  uint256 public currentEpoch; // current epoch for prediction round
+  uint256 public currentEpoch; // current epoch for bet round
 
   uint256 public oracleLatestRoundId; // converted from uint80 (Chainlink)
   uint256 public oracleUpdateAllowance; // seconds
@@ -126,7 +125,7 @@ contract BinaryOption is Ownable, Pausable, ReentrancyGuard {
 
   event NewAdminAddress(address admin);
   event NewOperatorAddress(address operator);
-  event NewBufferAndIntervalSeconds(uint256 bufferSeconds, uint256 intervalSeconds);
+  event NewBufferIntervalAndLockInSeconds(uint256 bufferSeconds, uint256 intervalSeconds, uint256 lockInSeconds);
   event NewMinBetAmount(uint256 indexed epoch, uint256 minBetAmount);
   event NewOracle(address oracle);
   event NewOracleUpdateAllowance(uint256 oracleUpdateAllowance);
@@ -513,15 +512,22 @@ contract BinaryOption is Ownable, Pausable, ReentrancyGuard {
   }
 
   /**
-   * @notice Set buffer and interval (in seconds)
+   * @notice Set buffer, interval and lock (in seconds)
    * @dev Callable by admin
    */
-  function setBufferAndIntervalSeconds(uint256 _bufferSeconds, uint256 _intervalSeconds) external whenPaused onlyAdmin {
+  function setBufferIntervalAndLockInSeconds(
+    uint256 _bufferSeconds,
+    uint256 _intervalSeconds,
+    uint256 _lockInSeconds
+  ) external whenPaused onlyAdmin {
     require(_bufferSeconds < _intervalSeconds, "BinaryOption: bufferSeconds must be lower than intervalSeconds");
+    require(_bufferSeconds < _lockInSeconds, "BinaryOption: bufferSeconds must be lower than lockInSeconds");
+    require(_lockInSeconds < _intervalSeconds, "BinaryOption: lockInSeconds must be lower than intervalSeconds");
     bufferSeconds = _bufferSeconds;
     intervalSeconds = _intervalSeconds;
+    lockInSeconds = _lockInSeconds;
 
-    emit NewBufferAndIntervalSeconds(_bufferSeconds, _intervalSeconds);
+    emit NewBufferIntervalAndLockInSeconds(_bufferSeconds, _intervalSeconds, _lockInSeconds);
   }
 
   /**
