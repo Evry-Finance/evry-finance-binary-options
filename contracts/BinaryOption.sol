@@ -305,6 +305,12 @@ contract BinaryOption is Ownable, Pausable, ReentrancyGuard {
     return (roundId, price);
   }
 
+  /**
+   * @notice Lock round
+   * @param epoch: epoch
+   * @param roundId: roundId
+   * @param price: price of the round
+   */
   function _safeLockRound(
     uint256 epoch,
     uint256 roundId,
@@ -393,7 +399,7 @@ contract BinaryOption is Ownable, Pausable, ReentrancyGuard {
    * @dev Callable by admin or operator
    */
   function genesisStartRound() external whenNotPaused onlyOperator {
-    require(!genesisStartOnce, "Can only run genesisStartRound once");
+    require(!genesisStartOnce, "BinaryOption: Can only run genesisStartRound once");
 
     currentEpoch = currentEpoch + 1;
     _startRound(currentEpoch);
@@ -405,8 +411,8 @@ contract BinaryOption is Ownable, Pausable, ReentrancyGuard {
    * @dev Callable by operator
    */
   function genesisLockRound() external whenNotPaused onlyOperator {
-    require(genesisStartOnce, "Can only run after genesisStartRound is triggered");
-    require(!genesisLockOnce, "Can only run genesisLockRound once");
+    require(genesisStartOnce, "BinaryOption: Can only run after genesisStartRound is triggered");
+    require(!genesisLockOnce, "BinaryOption: Can only run genesisLockRound once");
 
     (uint80 currentRoundId, int256 currentPrice) = _getPriceFromOracle();
 
@@ -423,7 +429,6 @@ contract BinaryOption is Ownable, Pausable, ReentrancyGuard {
    * @notice Start the next round n, lock price for round n-1, end round n-2
    * @dev Callable by operator
    */
-  // TODO call cronJob 60 min delay 15 min
   function lockAndStartNextRound() external whenNotPaused onlyOperator {
     require(
       genesisStartOnce && genesisLockOnce,
@@ -439,10 +444,13 @@ contract BinaryOption is Ownable, Pausable, ReentrancyGuard {
 
     // Increment currentEpoch to current round (n)
     currentEpoch = currentEpoch + 1;
-    _safeStartRound(currentEpoch);
+    _startRound(currentEpoch);
   }
 
-  // TODO call cronJob 60 min
+  /**
+   * @notice End round
+   * @dev Callable by operator
+   */
   function endRound() external whenNotPaused onlyOperator {
     require(
       genesisStartOnce && genesisLockOnce,
@@ -454,21 +462,6 @@ contract BinaryOption is Ownable, Pausable, ReentrancyGuard {
     _safeEndRound(currentEpoch - 1, currentRoundId, currentPrice);
     _calculateRewards(currentEpoch - 1);
     claimTreasury();
-  }
-
-  /**
-   * @notice Start round
-   * Previous round n-2 must end
-   * @param epoch: epoch
-   */
-  function _safeStartRound(uint256 epoch) internal {
-    require(genesisStartOnce, "BinaryOption: Can only run after genesisStartRound is triggered");
-    // require(rounds[epoch - 2].closeTimestamp != 0, "BinaryOption: Can only start round after round n-2 has ended");
-    // require(
-    //   block.timestamp >= rounds[epoch - 2].closeTimestamp,
-    //   "Can only start new round after round n-2 closeTimestamp"
-    // );
-    _startRound(epoch);
   }
 
   /**
@@ -653,6 +646,10 @@ contract BinaryOption is Ownable, Pausable, ReentrancyGuard {
       betInfo.amount != 0;
   }
 
+  /**
+   * @notice Start round
+   * @param epoch: epoch
+   */
   function _startRound(uint256 epoch) internal {
     Round storage round = rounds[epoch];
     round.startTimestamp = block.timestamp;
