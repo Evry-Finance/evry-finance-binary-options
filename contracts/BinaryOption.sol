@@ -1,7 +1,7 @@
 //contracts/BinaryOption.sol
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.9;
+pragma solidity 0.8.13;
 pragma abicoder v2;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -97,7 +97,9 @@ contract BinaryOption is Ownable, Pausable, ReentrancyGuard {
     uint256 _lockInSeconds
   ) {
     require(_treasuryFee <= MAX_TREASURY_FEE, "BinaryOption: Treasury fee too high");
-
+    require(_bufferSeconds < _lockInSeconds, "BinaryOption: bufferSeconds must be lower than lockInSeconds");
+    require(_lockInSeconds < _intervalSeconds, "BinaryOption: lockInSeconds must be lower than intervalSeconds");
+    
     betToken = _betToken;
     oracle = AggregatorV3Interface(_oracleAddress);
     adminAddress = _adminAddress;
@@ -278,8 +280,8 @@ contract BinaryOption is Ownable, Pausable, ReentrancyGuard {
 
   /**
    * @notice Determine if a round is valid for receiving bets
-   * Round must have started and locked
-   * Current timestamp must be within startTimestamp and closeTimestamp
+   * Round must have started and not locked yet
+   * Current timestamp must be within startTimestamp and lockTimestamp
    */
   function _bettable(uint256 epoch) internal view returns (bool) {
     return
@@ -474,10 +476,10 @@ contract BinaryOption is Ownable, Pausable, ReentrancyGuard {
   }
 
   /**
-   * @notice called by the admin to unpause, returns to normal state
+   * @notice called by the admin or operator to unpause, returns to normal state
    * Reset genesis state. Once paused, the rounds would need to be kickstarted by genesis
    */
-  function unpause() external whenPaused onlyAdmin {
+  function unpause() external whenPaused onlyAdminOrOperator {
     genesisStartOnce = false;
     genesisLockOnce = false;
     _unpause();
